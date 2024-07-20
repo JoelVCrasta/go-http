@@ -70,7 +70,6 @@ func (b *Bolt) Create(ctx context.Context, user database.User) error {
 
 	// Insert the user into the database
 	err = b.db.Update(func(tx *bolt.Tx) error {
-		// Use CreateBucketIfNotExists to avoid error if the bucket already exists
 		bucket, err := tx.CreateBucketIfNotExists([]byte(BUCKETNAME))
 		if err != nil {
 			return err
@@ -102,4 +101,60 @@ func (b *Bolt) Get(ctx context.Context, name string) *database.User {
 		log.Fatalf("Database corrupted: %v", err)
 	}
 	return &u
+}
+
+// Update updates a record in the database
+func (b *Bolt) Update(ctx context.Context, user database.User) (*database.User, error) {
+	var raw []byte
+
+	// Get the user from the database
+	b.db.View(func(tx *bolt.Tx) error {
+		b := tx.Bucket([]byte(BUCKETNAME))
+		raw = b.Get([]byte(user.Name))
+		return nil
+	})
+
+	// Unmarshal the JSON
+	var cur database.User
+	err := json.Unmarshal(raw, &cur)
+	if err != nil {
+		return nil, err
+	}
+
+	// Validate and update the user
+	cur.Name = user.Name
+	if user.Email != "" {
+		cur.Email = user.Email
+	}
+	if user.Age != 0 {
+		cur.Age = user.Age
+	}
+
+	//	Marshal the JSON
+	v, err := json.Marshal(cur)
+	if err != nil {
+		panic(fmt.Sprintf("Failed to marshal JSON: %v", err))
+	}
+
+	// Update the user in the database
+	err = b.db.Update(func(tx *bolt.Tx) error {
+		b := tx.Bucket([]byte(BUCKETNAME))
+		return b.Put([]byte(user.Name), v)
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return &cur, nil
+
+}
+
+// Delete deletes a record from the database
+func (b *Bolt) Delete(ctx context.Context, name string) error {
+	// Delete the user from the database
+	err := b.db.Update(func(tx *bolt.Tx) error {
+		b := tx.Bucket([]byte(BUCKETNAME))
+		return b.Delete([]byte(name))
+	})
+	return err
 }

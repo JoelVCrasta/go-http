@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"log"
 	"net/http"
@@ -29,10 +30,10 @@ var index string = `
 `
 
 // userInfo is a struct that holds the user information
-type userInfo struct {
+/* type userInfo struct {
 	email string
 	age   uint8
-}
+} */
 
 // Server is a struct that holds the server configuration
 type Server struct {
@@ -94,8 +95,9 @@ func (s *Server) HandleCreateUser(w http.ResponseWriter, r *http.Request) {
 		// Check if the user already exists
 		got := s.db.Get(s.ctx, u.Name)
 		if got != nil {
-			log.Printf("User already exists: %v", u.Name)
 			w.WriteHeader(http.StatusConflict)
+			w.Write([]byte(fmt.Sprintf("User already exists: %v", u.Name)))
+			log.Printf("User already exists: %v", u.Name)
 			return
 		}
 
@@ -149,51 +151,91 @@ func (s *Server) HandleUser(w http.ResponseWriter, r *http.Request) {
 		w.Header().Add("Content-Type", "application/json")
 		w.Write(msg)
 
-		// 	case http.MethodPatch:
-		// 		// check if its json
-		// 		contentType := r.Header.Get("Content-Type")
-		// 		if contentType != "application/json" {
-		// 			w.WriteHeader(http.StatusUnsupportedMediaType)
-		// 			return
-		// 		}
+	case http.MethodPatch:
+		// check if its json
+		contentType := r.Header.Get("Content-Type")
+		if contentType != "application/json" {
+			w.WriteHeader(http.StatusUnsupportedMediaType)
+			return
+		}
 
-		// 		// Read the request body
-		// 		body, err := io.ReadAll(r.Body)
-		// 		if err != nil {
-		// 			log.Printf("Failed to read request body: %v", err)
-		// 			w.WriteHeader(http.StatusInternalServerError)
-		// 			return
-		// 		}
-		// 		defer r.Body.Close()
+		// Read the request body
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			log.Printf("Failed to read request body: %v", err)
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		defer r.Body.Close()
 
-		// 		// Unmarshal the JSON
-		// 		var u user
-		// 		err = json.Unmarshal(body, &u)
-		// 		if err != nil {
-		// 			log.Printf("Failed to unmarshal JSON: %v", err)
-		// 			w.WriteHeader(http.StatusBadRequest)
-		// 			return
-		// 		}
+		// Unmarshal the JSON
+		var u database.User
+		err = json.Unmarshal(body, &u)
+		if err != nil {
+			log.Printf("Failed to unmarshal JSON: %v", err)
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
 
-		// 		log.Printf("Update User: %s", name)
+		// Validate the user
+		if u.Name == "" {
+			log.Print("No name provided")
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
 
-		// 		userInfo := s.users[name] // Get the user
-		// 		if u.Age != 0 {
-		// 			userInfo.age = u.Age
-		// 		}
-		// 		if u.Email != "" {
-		// 			userInfo.email = u.Email
-		// 		}
+		// Check if the user exists
+		got := s.db.Get(s.ctx, u.Name)
+		if got == nil {
+			w.WriteHeader(http.StatusNotFound)
+			w.Write([]byte(fmt.Sprintf("User does not exist: %v", u.Name)))
+			log.Printf("User does not exist: %v", u.Name)
+			return
+		}
 
-		// 		s.users[name] = userInfo
+		log.Printf("Update User: %s", name)
 
-		// 	case http.MethodDelete:
-		// 		log.Printf("Delete User: %s", name)
+		user, err := s.db.Update(s.ctx, u)
+		if err != nil {
+			log.Printf("Failed to update user: %v", err)
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
 
-		// 		delete(s.users, name)
+		// Return the updated user
+		msg, err := json.Marshal(user)
+		if err != nil {
+			log.Printf("Failed to marshal JSON: %v", err)
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		w.Header().Add("Content-Type", "application/json")
+		w.Write(msg)
 
-		// 	default:
-		// 		w.WriteHeader(http.StatusMethodNotAllowed)
+	case http.MethodDelete:
+		log.Printf("Delete User: %s", name)
+
+		// Check if the user exists
+		got := s.db.Get(s.ctx, name)
+		if got == nil {
+			w.WriteHeader(http.StatusNotFound)
+			w.Write([]byte(fmt.Sprintf("User does not exist: %v", name)))
+			log.Printf("User does not exist: %v", name)
+			return
+		}
+
+		// Delete the user
+		err := s.db.Delete(s.ctx, name)
+		if err != nil {
+			log.Printf("Failed to delete user: %v", err)
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+
+		w.WriteHeader(http.StatusOK)
+
+	default:
+		w.WriteHeader(http.StatusMethodNotAllowed)
 	}
 
 }
