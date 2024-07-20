@@ -1,4 +1,4 @@
-module JoelVCrasta/go-http
+module github.com/JoelVCrasta/go-http
 
 go 1.22.5
 

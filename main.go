@@ -6,9 +6,8 @@ import (
 	"net/http"
 	"time"
 
-	"JoelVCrasta/go-http/pkg/database/bolt"
-	"JoelVCrasta/go-http/pkg/server"
-
+	"github.com/JoelVCrasta/go-http/pkg/database/bolt"
+	"github.com/JoelVCrasta/go-http/pkg/server"
 	"github.com/gorilla/mux"
 )
 
@@ -29,7 +28,7 @@ func main() {
 	}
 	defer b.Close(ctx)
 
-	srv := server.New(b)
+	srv := server.New(ctx, b)
 
 	mux.HandleFunc("/", srv.HandleIndex)
 	mux.HandleFunc("/users/create", srv.HandleCreateUser)

@@ -1,12 +1,13 @@
 package server
 
 import (
-	"JoelVCrasta/go-http/pkg/database"
 	"context"
 	"encoding/json"
 	"io"
 	"log"
 	"net/http"
+
+	"github.com/JoelVCrasta/go-http/pkg/database"
 )
 
 var index string = `
@@ -26,13 +27,6 @@ var index string = `
 	</html>
 `
 
-// represents the JSON object that will be sent to the server
-type user struct {
-	Name  string `json:"name"`
-	Email string `json:"email"`
-	Age   uint8  `json:"age"`
-}
-
 // userInfo is a struct that holds the user information
 type userInfo struct {
 	email string
@@ -45,9 +39,10 @@ type Server struct {
 	db  database.Database
 }
 
-func New(db database.Database) *Server {
+func New(ctx context.Context, db database.Database) *Server {
 	return &Server{
-		db: db,
+		ctx: ctx,
+		db:  db,
 	}
 }
 
@@ -78,7 +73,7 @@ func (s *Server) HandleCreateUser(w http.ResponseWriter, r *http.Request) {
 		defer r.Body.Close()
 
 		// Unmarshal the JSON
-		var u user
+		var u database.User
 		err = json.Unmarshal(body, &u)
 		if err != nil {
 			log.Printf("Failed to unmarshal JSON: %v", err)
@@ -88,23 +83,17 @@ func (s *Server) HandleCreateUser(w http.ResponseWriter, r *http.Request) {
 
 		log.Printf("User: %v", u.Name)
 
-		// Add the user to the map
-		// s.users[u.Name] = userInfo{
-		// 	email: u.Email,
-		// 	age:   u.Age,
-		// }
-
-		// Write to databse
-		v, err := json.Marshal(u)
-		if err != nil {
-			log.Printf("Failed to marshal JSON: %v", err)
-			w.WriteHeader(http.StatusInternalServerError)
+		// Validate the user
+		if u.Name == "" {
+			log.Print("No name provided")
+			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
 
-		err = s.db.Create(s.ctx, v)
+		// Write to the database
+		err = s.db.Create(s.ctx, u)
 		if err != nil {
-			log.Printf("Failed to write to database: %v", err)
+			log.Printf("Failed to create user: %v", err)
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}

@@ -2,8 +2,10 @@ package bolt
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 
+	"github.com/JoelVCrasta/go-http/pkg/database"
 	bolt "go.etcd.io/bbolt"
 )
 
@@ -41,15 +43,36 @@ func New(ctx context.Context, dir string) (*Bolt, error) {
 	}, nil
 }
 
+type userInfo struct {
+	Email string `json:"email"`
+	Age   uint8  `json:"age"`
+}
+
 // Close closes the database connection
 func (b *Bolt) Close(ctx context.Context) {
 	b.db.Close()
 }
 
 // Create creates a new record in the database
-func (b *Bolt) Create(ctx context.Context, data []byte) error {
+func (b *Bolt) Create(ctx context.Context, user database.User) error {
 
-	fmt.Println(string(data))
+	// Create a new user
+	userInfo := userInfo{
+		Email: user.Email,
+		Age:   user.Age,
+	}
+
+	v, err := json.Marshal(userInfo)
+	if err != nil {
+		return err
+	}
+
+	// Insert the user into the database
+	b.db.Update(func(tx *bolt.Tx) error {
+		b, err := tx.CreateBucket([]byte(BUCKETNAME))
+		err = b.Put([]byte(user.Name), v)
+		return err
+	})
 
 	return nil
 }
