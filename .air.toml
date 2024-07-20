@@ -1,0 +1,21 @@
+# .air.toml
+
+# Working directory
+root = "."
+
+# Directory to watch for changes
+[build]
+  cmd = "go build -o ./tmp/main ."
+  bin = "./tmp/main"
+  full_bin = false
+
+[log]
+  level = "info"
+  color = true
+  timestamp = true
+
+[watch]
+  cmd = "go build -o ./tmp/main . && ./tmp/main"
+  exclude_dir = ["tmp", "vendor"]
+  include_ext = ["go", "tpl", "tmpl", "html"]
+  delay = 1000 # milliseconds
