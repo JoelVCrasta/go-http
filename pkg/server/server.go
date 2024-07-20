@@ -8,6 +8,7 @@ import (
 	"net/http"
 
 	"github.com/JoelVCrasta/go-http/pkg/database"
+	"github.com/gorilla/mux"
 )
 
 var index string = `
@@ -81,12 +82,20 @@ func (s *Server) HandleCreateUser(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		log.Printf("User: %v", u.Name)
+		log.Printf("Create User: %v", u.Name)
 
 		// Validate the user
 		if u.Name == "" {
 			log.Print("No name provided")
 			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+
+		// Check if the user already exists
+		got := s.db.Get(s.ctx, u.Name)
+		if got != nil {
+			log.Printf("User already exists: %v", u.Name)
+			w.WriteHeader(http.StatusConflict)
 			return
 		}
 
@@ -108,80 +117,83 @@ func (s *Server) HandleUser(w http.ResponseWriter, r *http.Request) {
 	// 	// fetch the user from query params
 	// 	// name := r.URL.Query().Get("name")
 
-	// 	params := mux.Vars(r) // get the URL params using mux
-	// 	name := params["name"]
-	// 	u, ok := s.users[name] // check if the user exists
-	// 	if !ok {
-	// 		w.WriteHeader(http.StatusNotFound)
-	// 		return
-	// 	}
+	params := mux.Vars(r) // get the URL params using mux
+	name := params["name"]
 
-	// 	switch r.Method {
-	// 	case http.MethodGet:
-	// 		ret := user{
-	// 			Name:  name,
-	// 			Email: u.email,
-	// 			Age:   u.age,
-	// 		}
+	switch r.Method {
+	case http.MethodGet:
+		log.Printf("Get User: %s", name)
 
-	// 		// Marshal the JSON
-	// 		msg, err := json.Marshal(ret)
-	// 		if err != nil {
-	// 			log.Printf("Failed to marshal JSON: %v", err)
-	// 			w.WriteHeader(http.StatusInternalServerError)
-	// 			return
-	// 		}
+		// Get the user from the database
+		ret := s.db.Get(s.ctx, name)
+		if ret == nil {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
 
-	// 		log.Printf("Get User: %s", name)
+		// Add the name to the user
+		ret = &database.User{
+			Name:  name,
+			Email: ret.Email,
+			Age:   ret.Age,
+		}
 
-	// 		w.Header().Add("Content-Type", "application/json")
-	// 		w.Write(msg)
+		// Marshal the JSON
+		msg, err := json.Marshal(ret)
+		if err != nil {
+			log.Printf("Failed to marshal JSON: %v", err)
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
 
-	// 	case http.MethodPatch:
-	// 		// check if its json
-	// 		contentType := r.Header.Get("Content-Type")
-	// 		if contentType != "application/json" {
-	// 			w.WriteHeader(http.StatusUnsupportedMediaType)
-	// 			return
-	// 		}
+		w.Header().Add("Content-Type", "application/json")
+		w.Write(msg)
 
-	// 		// Read the request body
-	// 		body, err := io.ReadAll(r.Body)
-	// 		if err != nil {
-	// 			log.Printf("Failed to read request body: %v", err)
-	// 			w.WriteHeader(http.StatusInternalServerError)
-	// 			return
-	// 		}
-	// 		defer r.Body.Close()
+		// 	case http.MethodPatch:
+		// 		// check if its json
+		// 		contentType := r.Header.Get("Content-Type")
+		// 		if contentType != "application/json" {
+		// 			w.WriteHeader(http.StatusUnsupportedMediaType)
+		// 			return
+		// 		}
 
-	// 		// Unmarshal the JSON
-	// 		var u user
-	// 		err = json.Unmarshal(body, &u)
-	// 		if err != nil {
-	// 			log.Printf("Failed to unmarshal JSON: %v", err)
-	// 			w.WriteHeader(http.StatusBadRequest)
-	// 			return
-	// 		}
+		// 		// Read the request body
+		// 		body, err := io.ReadAll(r.Body)
+		// 		if err != nil {
+		// 			log.Printf("Failed to read request body: %v", err)
+		// 			w.WriteHeader(http.StatusInternalServerError)
+		// 			return
+		// 		}
+		// 		defer r.Body.Close()
 
-	// 		log.Printf("Update User: %s", name)
+		// 		// Unmarshal the JSON
+		// 		var u user
+		// 		err = json.Unmarshal(body, &u)
+		// 		if err != nil {
+		// 			log.Printf("Failed to unmarshal JSON: %v", err)
+		// 			w.WriteHeader(http.StatusBadRequest)
+		// 			return
+		// 		}
 
-	// 		userInfo := s.users[name] // Get the user
-	// 		if u.Age != 0 {
-	// 			userInfo.age = u.Age
-	// 		}
-	// 		if u.Email != "" {
-	// 			userInfo.email = u.Email
-	// 		}
+		// 		log.Printf("Update User: %s", name)
 
-	// 		s.users[name] = userInfo
+		// 		userInfo := s.users[name] // Get the user
+		// 		if u.Age != 0 {
+		// 			userInfo.age = u.Age
+		// 		}
+		// 		if u.Email != "" {
+		// 			userInfo.email = u.Email
+		// 		}
 
-	// 	case http.MethodDelete:
-	// 		log.Printf("Delete User: %s", name)
+		// 		s.users[name] = userInfo
 
-	// 		delete(s.users, name)
+		// 	case http.MethodDelete:
+		// 		log.Printf("Delete User: %s", name)
 
-	// 	default:
-	// 		w.WriteHeader(http.StatusMethodNotAllowed)
-	// 	}
+		// 		delete(s.users, name)
+
+		// 	default:
+		// 		w.WriteHeader(http.StatusMethodNotAllowed)
+	}
 
 }

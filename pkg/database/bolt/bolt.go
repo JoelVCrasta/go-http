@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 
 	"github.com/JoelVCrasta/go-http/pkg/database"
 	bolt "go.etcd.io/bbolt"
@@ -68,11 +69,37 @@ func (b *Bolt) Create(ctx context.Context, user database.User) error {
 	}
 
 	// Insert the user into the database
-	b.db.Update(func(tx *bolt.Tx) error {
-		b, err := tx.CreateBucket([]byte(BUCKETNAME))
-		err = b.Put([]byte(user.Name), v)
-		return err
+	err = b.db.Update(func(tx *bolt.Tx) error {
+		// Use CreateBucketIfNotExists to avoid error if the bucket already exists
+		bucket, err := tx.CreateBucketIfNotExists([]byte(BUCKETNAME))
+		if err != nil {
+			return err
+		}
+		return bucket.Put([]byte(user.Name), v)
 	})
 
-	return nil
+	return err
+}
+
+func (b *Bolt) Get(ctx context.Context, name string) *database.User {
+	var raw []byte
+
+	// Get the user from the database
+	b.db.View(func(tx *bolt.Tx) error {
+		b := tx.Bucket([]byte(BUCKETNAME))
+		raw = b.Get([]byte(name))
+		return nil
+	})
+
+	if len(raw) == 0 {
+		return nil
+	}
+
+	// Unmarshal the JSON
+	var u database.User
+	err := json.Unmarshal(raw, &u)
+	if err != nil {
+		log.Fatalf("Database corrupted: %v", err)
+	}
+	return &u
 }

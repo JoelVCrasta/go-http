@@ -13,4 +13,5 @@ type User struct {
 // It abstracts the underlying implementation.
 type Database interface {
 	Create(ctx context.Context, user User) error
+	Get(ctx context.Context, name string) *User
 }
